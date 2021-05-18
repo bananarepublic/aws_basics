@@ -1,0 +1,151 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: TK AWS CloudFormation RDS Stack
+
+Parameters: {}
+
+Mappings: {}
+
+Resources:
+  VPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+        - Key: Name
+          Value: TK-RDS-Stack-VPC
+
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+        - Key: Name
+          Value: TK-RDS-Stack-IGW
+
+  AttachGateway:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+        - Key: Name
+          Value: TK-RDS-Stack-PublicRouteTable
+
+  RouteGlobal:
+    Type: 'AWS::EC2::Route'
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.11.0/24
+      AvailabilityZone: us-east-1a
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+        - Key: Name
+          Value: TK-RDS-Stack-PublicSubnet
+
+  PublicSubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicMachine:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      ImageId: ami-0747bdcabd34c712a
+      InstanceType: t2.micro
+      KeyName: tk_ssh_key
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: 'true'
+          DeleteOnTermination: 'true'
+          DeviceIndex: '0'
+          GroupSet:
+            - !Ref SSHIngressTrafficFromOutsideSecurityGroup
+            - !Ref HTTPIngressTrafficFromOutsideSecurityGroup
+          SubnetId: !Ref PublicSubnet
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+        - Key: Name
+          Value: TK-RDS-Stack-PublicMachine
+      UserData:
+        Fn::Base64: !Sub |
+          Content-Type: multipart/mixed; boundary="//"
+          MIME-Version: 1.0
+
+          --//
+          Content-Type: text/cloud-config; charset="us-ascii"
+          MIME-Version: 1.0
+          Content-Transfer-Encoding: 7bit
+          Content-Disposition: attachment; filename="cloud-config.txt"
+
+          #cloud-config
+          cloud_final_modules:
+          - [scripts-user, always]
+
+          --//
+          Content-Type: text/x-shellscript; charset="us-ascii"
+          MIME-Version: 1.0
+          Content-Transfer-Encoding: 7bit
+          Content-Disposition: attachment; filename="userdata.txt"
+
+          #!/bin/bash
+          apt-get -y update
+          apt-get -y install git virtualenv
+          
+          cd /home/ubuntu
+          git clone https://github.com/bananarepublic/aws_basics.git
+          cd aws_basics/4_ec2
+
+          virtualenv env  --python=python3
+          . env/bin/activate
+          pip install -r requirements.txt
+
+          python server.py &
+
+  SSHIngressTrafficFromOutsideSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Alow SSH ingress traffic from outside
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 37.214.0.0/16
+
+  HTTPIngressTrafficFromOutsideSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Alow HTTP ingress traffic from outside
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '8888'
+          ToPort: '8888'
+          CidrIp: 0.0.0.0/0
+
+Outputs: {}

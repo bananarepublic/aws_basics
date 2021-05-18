@@ -68,11 +68,18 @@ Resources:
       SubnetId: !Ref PublicSubnet
       RouteTableId: !Ref PublicRouteTable
 
+  PublicMachineProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Roles:
+        - 'TK_FullAccessRoleS3'
+
   PublicMachine:
     Type: 'AWS::EC2::Instance'
     Properties:
       ImageId: ami-0747bdcabd34c712a
       InstanceType: t2.micro
+      IamInstanceProfile: !Ref PublicMachineProfile
       KeyName: tk_ssh_key
       NetworkInterfaces:
         - AssociatePublicIpAddress: 'true'
@@ -110,7 +117,7 @@ Resources:
 
           #!/bin/bash
           apt-get -y update
-          apt-get -y install git virtualenv
+          apt-get -y install awscli git virtualenv
           
           cd /home/ubuntu
           git clone https://github.com/bananarepublic/aws_basics.git
@@ -147,5 +154,10 @@ Resources:
           FromPort: '8888'
           ToPort: '8888'
           CidrIp: 0.0.0.0/0
+
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: 'tk-rds-stack-s3bucket'
 
 Outputs: {}

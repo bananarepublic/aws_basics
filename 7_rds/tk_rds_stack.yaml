@@ -121,7 +121,7 @@ Resources:
           
           cd /home/ubuntu
           git clone https://github.com/bananarepublic/aws_basics.git
-          cd aws_basics/4_ec2
+          cd aws_basics/7_rds
 
           virtualenv env  --python=python3
           . env/bin/activate

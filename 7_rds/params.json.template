@@ -1,0 +1,18 @@
+[
+    {
+      "ParameterKey": "DBName",
+      "ParameterValue": "MYDB"
+    },
+    {
+      "ParameterKey": "DBUser",
+      "ParameterValue": "MYUSER"
+    },
+    {
+      "ParameterKey": "DBPassword",
+      "ParameterValue": "MYPWD"
+    },
+    {
+      "ParameterKey": "S3BucketName",
+      "ParameterValue": "MYS3BUCKET"
+    }
+]

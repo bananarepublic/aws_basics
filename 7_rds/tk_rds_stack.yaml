@@ -2,11 +2,46 @@ AWSTemplateFormatVersion: 2010-09-09
 
 Description: TK AWS CloudFormation RDS Stack
 
-Parameters: {}
+Parameters:
+
+  DBName:
+    Description: The database name
+    Type: String
+    MinLength: '1'
+    MaxLength: '64'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: Must begin with a letter and contain only alphanumeric characters
+
+  DBUser:
+    NoEcho: 'true'
+    Description: The database admin account username
+    Type: String
+    MinLength: '1'
+    MaxLength: '16'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: Must begin with a letter and contain only alphanumeric characters
+
+  DBPassword:
+    NoEcho: 'true'
+    Description: The database admin account password
+    Type: String
+    MinLength: '8'
+    MaxLength: '41'
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: Must contain only alphanumeric characters
+
+  S3BucketName:
+    Description: The S3 bucket name
+    Type: String
+    MinLength: '10'
+    MaxLength: '64'
+    AllowedPattern: '[a-z][a-z0-9-]*'
+    ConstraintDescription: Must begin with a letter and contain only alphanumeric characters and hyphens
 
 Mappings: {}
 
 Resources:
+
   VPC:
     Type: 'AWS::EC2::VPC'
     Properties:
@@ -68,6 +103,43 @@ Resources:
       SubnetId: !Ref PublicSubnet
       RouteTableId: !Ref PublicRouteTable
 
+  DbSubnetA:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.13.0/24
+      AvailabilityZone: us-east-1a
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+        - Key: Name
+          Value: TK-RDS-Stack-DbSubnet-A
+
+  DbSubnetB:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.14.0/24
+      AvailabilityZone: us-east-1b
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+        - Key: Name
+          Value: TK-RDS-Stack-DbSubnet-B
+
+  DBSubnetGroup:
+    Type: "AWS::RDS::DBSubnetGroup"
+    Properties:
+      DBSubnetGroupDescription: DB Subnet Group using subnets from 2 AZs
+      SubnetIds:
+        - !Ref DbSubnetA
+        - !Ref DbSubnetB
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+        - Key: Name
+          Value: TK-RDS-Stack-DbSubnetGroup
+
   PublicMachineProfile:
     Type: 'AWS::IAM::InstanceProfile'
     Properties:
@@ -95,7 +167,8 @@ Resources:
         - Key: Name
           Value: TK-RDS-Stack-PublicMachine
       UserData:
-        Fn::Base64: !Sub |
+        Fn::Base64: !Sub
+        - |
           Content-Type: multipart/mixed; boundary="//"
           MIME-Version: 1.0
 
@@ -117,23 +190,61 @@ Resources:
 
           #!/bin/bash
           apt-get -y update
-          apt-get -y install awscli git virtualenv
-          
+          apt-get -y install awscli git mysql-client python3-mysqldb virtualenv
+
           cd /home/ubuntu
           git clone https://github.com/bananarepublic/aws_basics.git
           cd aws_basics/7_rds
 
-          virtualenv env  --python=python3
+          export MYSQL_HOST="${mysql_host}"
+          export MYSQL_PORT="${mysql_port}"
+          export MYSQL_DATABASE="${mysql_database}"
+          export MYSQL_USER="${mysql_user}"
+          export MYSQL_PASSWORD="${mysql_password}"
+          export S3_BUCKET="${s3_bucket}"
+
+          virtualenv env  --python=python3 --system-site-packages
           . env/bin/activate
           pip install -r requirements.txt
 
           python server.py &
 
+        - mysql_host: !GetAtt PrivateDB.Endpoint.Address
+          mysql_port: !GetAtt PrivateDB.Endpoint.Port
+          mysql_database: !Ref DBName
+          mysql_user: !Ref DBUser
+          mysql_password: !Ref DBPassword
+          s3_bucket: !Ref S3Bucket
+
+  PrivateDB:
+    Type: 'AWS::RDS::DBInstance'
+    Properties:
+      DBInstanceIdentifier: TK-RDS-Stack-PrivateDB
+      DBName: !Ref DBName
+      AllocatedStorage: '5'
+      DBInstanceClass: 'db.t2.micro'
+      Engine: MySQL
+      EngineVersion: 8.0.20
+      StorageType: standard
+      MasterUsername: !Ref DBUser
+      MasterUserPassword: !Ref DBPassword
+      MultiAZ: 'false'
+      PubliclyAccessible: 'false'
+      VPCSecurityGroups:
+        - !Ref AllIngressTrafficInsideVPCSecurityGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+        - Key: Name
+          Value: TK-RDS-Stack-PrivateDB
+    DeletionPolicy: Delete
+
   SSHIngressTrafficFromOutsideSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
       VpcId: !Ref VPC
-      GroupDescription: Alow SSH ingress traffic from outside
+      GroupDescription: Allow SSH ingress traffic from outside
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: '22'
@@ -144,7 +255,7 @@ Resources:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
       VpcId: !Ref VPC
-      GroupDescription: Alow HTTP ingress traffic from outside
+      GroupDescription: Allow HTTP ingress traffic from outside
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: '80'
@@ -155,9 +266,24 @@ Resources:
           ToPort: '8888'
           CidrIp: 0.0.0.0/0
 
+  AllIngressTrafficInsideVPCSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Allow all ingress traffic inside VPC
+      SecurityGroupIngress:
+        - IpProtocol: '-1'
+          CidrIp: 10.0.0.0/16
+
   S3Bucket:
     Type: 'AWS::S3::Bucket'
     Properties:
       BucketName: 'tk-rds-stack-s3bucket'
+
+  #S3Bucket:
+    #Type: 'AWS::S3::Bucket'
+    #Properties:
+      #BucketName: '!Ref S3BucketName'
+    #DeletionPolicy: Retain
 
 Outputs: {}

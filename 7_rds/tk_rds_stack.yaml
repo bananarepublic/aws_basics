@@ -192,22 +192,24 @@ Resources:
           apt-get -y update
           apt-get -y install awscli git mysql-client python3-mysqldb virtualenv
 
-          cd /home/ubuntu
-          git clone https://github.com/bananarepublic/aws_basics.git
-          cd aws_basics/7_rds
+          su - ubuntu -c 'cat >> .bashrc' << EOF
+            export MYSQL_HOST="${mysql_host}"
+            export MYSQL_PORT="${mysql_port}"
+            export MYSQL_DATABASE="${mysql_database}"
+            export MYSQL_USER="${mysql_user}"
+            export MYSQL_PASSWORD="${mysql_password}"
+            export S3_BUCKET="${s3_bucket}"
+          EOF
 
-          export MYSQL_HOST="${mysql_host}"
-          export MYSQL_PORT="${mysql_port}"
-          export MYSQL_DATABASE="${mysql_database}"
-          export MYSQL_USER="${mysql_user}"
-          export MYSQL_PASSWORD="${mysql_password}"
-          export S3_BUCKET="${s3_bucket}"
-
-          virtualenv env  --python=python3 --system-site-packages
-          . env/bin/activate
-          pip install -r requirements.txt
-
-          python server.py &
+          su - ubuntu -c '
+            #cd /home/ubuntu
+            git clone https://github.com/bananarepublic/aws_basics.git
+            cd aws_basics/7_rds
+            virtualenv env  --python=python3 --system-site-packages
+            . env/bin/activate
+            pip install -r requirements.txt
+            python server.py &
+          '
 
         - mysql_host: !GetAtt PrivateDB.Endpoint.Address
           mysql_port: !GetAtt PrivateDB.Endpoint.Port

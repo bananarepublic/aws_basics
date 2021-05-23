@@ -1,6 +1,7 @@
 import os
 
 import boto3
+import MySQLdb
 import requests
 
 from tornado.httpserver import HTTPServer
@@ -25,6 +26,20 @@ def instance_info():
     ).json()
 
 
+def mysql_version():
+    db = MySQLdb.connect(
+        host=MYSQL_HOST,
+        user=MYSQL_USER,
+        passwd=MYSQL_PASSWORD,
+    )
+    cursor = db.cursor()
+    cursor.execute("select version()")
+    data = cursor.fetchone()
+    db.close()
+
+    return data[0]
+
+
 class MainHandler(RequestHandler):
     def get(self):
         self.write("Hello, world\n")
@@ -32,11 +47,13 @@ class MainHandler(RequestHandler):
 
 class InfoHandler(RequestHandler):
     def get(self):
-        info = instance_info()
-        region = info["region"]
-        az = info["availabilityZone"]
+        ec2_info = instance_info()
+        region = ec2_info["region"]
+        az = ec2_info["availabilityZone"]
+        db_version = mysql_version()
         self.write(f"Region: {region}\n")
         self.write(f"AZ: {az}\n")
+        self.write(f"MySQL version: {db_version}\n")
 
 
 class FilesHandler(RequestHandler):

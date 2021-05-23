@@ -19,7 +19,7 @@ Listening on http://0.0.0.0:8888
 ## Test
 
 ```
-export EC2_HOST=54.146.246.126
+$ export EC2_HOST=54.146.246.126
 ```
 
 ```

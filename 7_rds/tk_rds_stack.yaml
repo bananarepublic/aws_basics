@@ -192,7 +192,7 @@ Resources:
           apt-get -y update
           apt-get -y install awscli git mysql-client python3-mysqldb virtualenv
 
-          su - ubuntu -c 'cat >> .bashrc' << EOF
+          su - ubuntu -c 'cat > env.sh' << EOF
             export MYSQL_HOST="${mysql_host}"
             export MYSQL_PORT="${mysql_port}"
             export MYSQL_DATABASE="${mysql_database}"
@@ -201,14 +201,21 @@ Resources:
             export S3_BUCKET="${s3_bucket}"
           EOF
 
+          su - ubuntu -c 'cat >> .bashrc' << EOF
+            source env.sh
+          EOF
+
           su - ubuntu -c '
+            source env.sh
+
             if [[ ! -d aws_basics ]]; then
               git clone https://github.com/bananarepublic/aws_basics.git
             fi
             cd aws_basics/7_rds
             git pull origin master
+
             virtualenv env  --python=python3 --system-site-packages
-            . env/bin/activate
+            source env/bin/activate
             pip install -r requirements.txt
             python server.py &
           '

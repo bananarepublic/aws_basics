@@ -19,12 +19,46 @@ Listening on http://0.0.0.0:8888
 ## Test
 
 ```
-$ curl localhost:8888/
+export EC2_HOST=54.146.246.126
+```
+
+```
+$ curl $EC2_HOST:8888/
 Hello, world
 ```
 
 ```
-$ curl 54.146.246.126:8888/info
+$ curl $EC2_HOST:8888/info
 Region: us-east-1
 AZ: us-east-1a
+```
+
+### Create local file
+
+```
+$ echo 'Hello, world!' > file.txt
+```
+
+### Create files
+
+```
+$ curl -i $EC2_HOST:8888/files -F files=@file.txt
+```
+
+### List all files
+
+```
+$ curl -i $EC2_HOST:8888/files/
+```
+
+### Get file
+
+```
+$ curl -i $EC2_HOST:8888/files/file.txt
+```
+
+### Delete file
+
+```
+$ curl -XDELETE $EC2_HOST:8888/files/file.txt
 ```

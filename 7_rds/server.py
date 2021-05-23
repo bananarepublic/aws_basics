@@ -1,3 +1,5 @@
+import os
+
 import boto3
 import requests
 
@@ -8,19 +10,13 @@ from tornado.web import Application, RequestHandler
 
 define("port", default=8888, help="port to listen on")
 
-# Create local file:
-# echo 'Hello, world!' > file.txt
+MYSQL_HOST = os.getenv('MYSQL_HOST')
+MYSQL_PORT = os.getenv('MYSQL_PORT')
+MYSQL_DATABASE = os.getenv('MYSQL_DATABASE')
+MYSQL_USER = os.getenv('MYSQL_USER')
+MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD')
+S3_BUCKET = os.getenv('S3_BUCKET')
 
-# Create files:
-# curl -i localhost:8888/files -F files=@file.txt
-# List all files:
-# curl -i localhost:8888/files/
-# Get file:
-# curl -i localhost:8888/files/file.txt
-# Delete file:
-# curl -XDELETE localhost:8888/files/file.txt
-
-S3_BUCKET = "tk-rds-stack-s3bucket"
 
 
 def instance_info():

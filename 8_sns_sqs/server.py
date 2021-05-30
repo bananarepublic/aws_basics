@@ -1,4 +1,5 @@
 import os
+import threading
 
 import boto3
 import requests
@@ -8,10 +9,12 @@ from tornado.ioloop import IOLoop
 from tornado.options import define, options
 from tornado.web import Application, RequestHandler
 
-define("port", default=8888, help="port to listen on")
+HTTP_PORT = 8888
+define("port", default=HTTP_PORT, help="port to listen on")
 
 S3_BUCKET = os.getenv('S3_BUCKET')
 SNS_TOPIC = os.getenv('SNS_TOPIC')
+SQS_QUEUE = os.getenv('SQS_QUEUE')
 
 
 def instance_info():
@@ -20,17 +23,19 @@ def instance_info():
     ).json()
 
 
+def get_public_ip():
+    return requests.get('http://169.254.169.254/latest/meta-data/public-ipv4').text
+
+
 def get_region():
     ec2_info = instance_info()
     region = ec2_info["region"]
-
     return region
 
 
 def get_az():
     ec2_info = instance_info()
     az = ec2_info["availabilityZone"]
-
     return az
 
 
@@ -49,33 +54,52 @@ class InfoHandler(RequestHandler):
 
 class FilesHandler(RequestHandler):
     def post(self, ignored):
-        client = boto3.client("s3")
+        s3 = boto3.client('s3')
+        sqs = boto3.client('sqs', region_name=get_region())
         print(self.request.files)
         for key in self.request.files:
             for file in self.request.files[key]:
                 print(file)
                 filename = file["filename"]
                 body = file["body"]
-                client.put_object(
+                s3.put_object(
                     Bucket=S3_BUCKET,
                     Key=filename,
                     Body=body,
                 )
+
+                event_type = 'file_uploaded'
+                file_size = len(body)
+                file_name, file_ext = os.path.splitext(filename)
+                file_url = f'http://{get_public_ip()}:{HTTP_PORT}/files/{filename}'
+                message_body = (
+                    f'Event Type: {event_type}\n'
+                    f'File Name: {file_name}\n'
+                    f'File Ext: {file_ext}\n'
+                    f'File Size: {file_size}\n'
+                    f'File URL: {file_url}\n'
+                )
+                sqs.send_message(
+                    QueueUrl=SQS_QUEUE,
+                    MessageBody=message_body,
+                )
+                print('Send message to SQS')
+
                 self.set_status(201)
                 self.write(f"{filename} {len(body)} bytes uploaded\n")
 
     def get(self, filename=None):
-        client = boto3.client("s3")
+        s3 = boto3.client("s3")
         if filename:
             try:
-                obj = client.get_object(
+                obj = s3.get_object(
                     Bucket=S3_BUCKET,
                     Key=filename,
                 )
                 print(obj)
                 self.set_header("Content-Disposition", f"attachment; filename=\"{filename}\"")
                 self.write(obj["Body"].read())
-            except client.exceptions.NoSuchKey:
+            except s3.exceptions.NoSuchKey:
                 self.set_status(404)
                 self.write(f"{filename} not found\n")
             except Exception as e:
@@ -83,7 +107,7 @@ class FilesHandler(RequestHandler):
                 self.set_status(500)
         else:
             try:
-                obj = client.list_objects(
+                obj = s3.list_objects(
                     Bucket=S3_BUCKET,
                 )
                 if "Contents" in obj:
@@ -103,9 +127,9 @@ class FilesHandler(RequestHandler):
                 self.set_status(500)
 
     def delete(self, filename):
-        client = boto3.client("s3")
+        s3 = boto3.client("s3")
         try:
-            obj = client.delete_object(
+            obj = s3.delete_object(
                 Bucket=S3_BUCKET,
                 Key=filename,
             )
@@ -168,7 +192,38 @@ class SubsHandler(RequestHandler):
             self.set_status(500)
 
 
+def send_sqs_messages_to_sns():
+    sns = boto3.client('sns', region_name=get_region())
+    sqs = boto3.client('sqs', region_name=get_region())
+
+    while True:
+        response = sqs.receive_message(
+            QueueUrl=SQS_QUEUE,
+            WaitTimeSeconds=20,
+        )
+
+        if not 'Messages' in response:
+            print('No messages')
+            continue
+
+        for message in response['Messages']:
+            message_body = message['Body']
+            response = sns.publish(
+                TargetArn=SNS_TOPIC,
+                Message=message_body,
+                Subject='New Event',
+            )
+            print('Send message to SNS')
+            receipt_handle = message['ReceiptHandle']
+            sqs.delete_message(QueueUrl=SQS_QUEUE, ReceiptHandle=receipt_handle)
+            print('Delete message from SQS')
+
+
 def make_app():
+    worker = threading.Thread(target=send_sqs_messages_to_sns)
+    worker.setDaemon(True)
+    worker.start()
+
     return Application([
         (r"/"    , MainHandler),
         (r"/info", InfoHandler),

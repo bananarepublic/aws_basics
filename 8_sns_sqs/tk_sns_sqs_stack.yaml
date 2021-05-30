@@ -124,6 +124,7 @@ Resources:
           su - ubuntu -c 'cat > env.sh' << EOF
             export S3_BUCKET="${s3_bucket}"
             export SNS_TOPIC="${sns_topic}"
+            export SQS_QUEUE="${sqs_queue}"
           EOF
 
           su - ubuntu -c 'cat >> .bashrc' << EOF
@@ -147,6 +148,7 @@ Resources:
 
         - s3_bucket: !Ref S3Bucket
           sns_topic: !Ref SNSTopic
+          sqs_queue: !Ref SQSQueue
 
   SSHIngressTrafficFromOutsideSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
@@ -191,5 +193,8 @@ Resources:
     Properties:
       Subscription: []
       TopicName: !Join [ '-', [ !Ref AWS::StackName, SNSTopic ] ]
+
+  SQSQueue:
+    Type: AWS::SQS::Queue
 
 Outputs: {}

@@ -11,13 +11,27 @@ from tornado.web import Application, RequestHandler
 define("port", default=8888, help="port to listen on")
 
 S3_BUCKET = os.getenv('S3_BUCKET')
-
+SNS_TOPIC = os.getenv('SNS_TOPIC')
 
 
 def instance_info():
     return requests.get(
         "http://169.254.169.254/latest/dynamic/instance-identity/document"
     ).json()
+
+
+def get_region():
+    ec2_info = instance_info()
+    region = ec2_info["region"]
+
+    return region
+
+
+def get_az():
+    ec2_info = instance_info()
+    az = ec2_info["availabilityZone"]
+
+    return az
 
 
 class MainHandler(RequestHandler):
@@ -27,9 +41,8 @@ class MainHandler(RequestHandler):
 
 class InfoHandler(RequestHandler):
     def get(self):
-        ec2_info = instance_info()
-        region = ec2_info["region"]
-        az = ec2_info["availabilityZone"]
+        region = get_region()
+        az = get_az()
         self.write(f"Region: {region}\n")
         self.write(f"AZ: {az}\n")
 
@@ -103,11 +116,64 @@ class FilesHandler(RequestHandler):
             self.set_status(500)
 
 
+class SubsHandler(RequestHandler):
+    def post(self, email=None):
+        """Create email subscription."""
+        sns = boto3.client('sns', region_name=get_region())
+        if email:
+            try:
+                response = sns.subscribe(
+                    TopicArn=SNS_TOPIC,
+                    Protocol="email",
+                    Endpoint=email,
+                )
+
+                self.write('Please visit your email to confirm subscription\n')
+            except Exception as e:
+                print(e)
+                self.set_status(500)
+        else:
+            self.set_status(404)
+
+    def get(self, ignored):
+        """List all email subscriptions."""
+        sns = boto3.client("sns", region_name=get_region())
+        try:
+            response = sns.list_subscriptions_by_topic(TopicArn=SNS_TOPIC)
+            subs = [sub['Endpoint'] for sub in response['Subscriptions']]
+
+            for sub in subs:
+                self.write(f'{sub}\n')
+
+            self.write(f'{len(subs)} subscriptions\n')
+        except Exception as e:
+            print(e)
+            self.set_status(500)
+
+    def delete(self, email):
+        """Delete email subscription."""
+        sns = boto3.client('sns', region_name=get_region())
+        try:
+            response = sns.list_subscriptions_by_topic(TopicArn=SNS_TOPIC)
+            subs = response['Subscriptions']
+
+            for sub in subs:
+                if sub['Protocol'] == 'email' and sub['Endpoint'] == email:
+                    sns.unsubscribe(SubscriptionArn=sub['SubscriptionArn'])
+                    break
+
+            self.write(f'{email} unsubscribed\n')
+        except Exception as e:
+            print(e)
+            self.set_status(500)
+
+
 def make_app():
     return Application([
         (r"/"    , MainHandler),
         (r"/info", InfoHandler),
         (r"/files/?([^/]+)?", FilesHandler),
+        (r"/subs/?([^/]+)?", SubsHandler),
     ], debug=True)
 
 

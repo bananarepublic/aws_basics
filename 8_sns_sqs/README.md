@@ -62,3 +62,21 @@ $ curl -i $EC2_HOST:8888/files/file.txt
 ```
 $ curl -XDELETE $EC2_HOST:8888/files/file.txt
 ```
+
+### Create email subscription
+
+```
+$ curl -i -XPOST $EC2_HOST:8888/subs/EMAIL
+```
+
+### List all email subscriptions
+
+```
+$ curl -i $EC2_HOST:8888/subs
+```
+
+### Delete email subscription
+
+```
+curl -i -XDELETE $EC2_HOST:8888/subs/EMAIL
+```

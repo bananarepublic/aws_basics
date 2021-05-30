@@ -73,7 +73,7 @@ Resources:
     Type: 'AWS::IAM::InstanceProfile'
     Properties:
       Roles:
-        - 'TK_FullAccessRoleS3'
+        - 'TK_AccessRole'
 
   PublicMachine:
     Type: 'AWS::EC2::Instance'
@@ -123,6 +123,7 @@ Resources:
 
           su - ubuntu -c 'cat > env.sh' << EOF
             export S3_BUCKET="${s3_bucket}"
+            export SNS_TOPIC="${sns_topic}"
           EOF
 
           su - ubuntu -c 'cat >> .bashrc' << EOF
@@ -145,6 +146,7 @@ Resources:
           '
 
         - s3_bucket: !Ref S3Bucket
+          sns_topic: !Ref SNSTopic
 
   SSHIngressTrafficFromOutsideSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
@@ -183,5 +185,11 @@ Resources:
 
   S3Bucket:
     Type: 'AWS::S3::Bucket'
+
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription: []
+      TopicName: !Join [ '-', [ !Ref AWS::StackName, SNSTopic ] ]
 
 Outputs: {}

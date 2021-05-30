@@ -10,7 +10,7 @@ from tornado.options import define, options
 from tornado.web import Application, RequestHandler
 
 HTTP_PORT = 8888
-define("port", default=HTTP_PORT, help="port to listen on")
+define('port', default=HTTP_PORT, help='port to listen on')
 
 S3_BUCKET = os.getenv('S3_BUCKET')
 SNS_TOPIC = os.getenv('SNS_TOPIC')
@@ -19,7 +19,7 @@ SQS_QUEUE = os.getenv('SQS_QUEUE')
 
 def instance_info():
     return requests.get(
-        "http://169.254.169.254/latest/dynamic/instance-identity/document"
+        'http://169.254.169.254/latest/dynamic/instance-identity/document'
     ).json()
 
 
@@ -29,27 +29,27 @@ def get_public_ip():
 
 def get_region():
     ec2_info = instance_info()
-    region = ec2_info["region"]
+    region = ec2_info['region']
     return region
 
 
 def get_az():
     ec2_info = instance_info()
-    az = ec2_info["availabilityZone"]
+    az = ec2_info['availabilityZone']
     return az
 
 
 class MainHandler(RequestHandler):
     def get(self):
-        self.write("Hello, world\n")
+        self.write('Hello, world\n')
 
 
 class InfoHandler(RequestHandler):
     def get(self):
         region = get_region()
         az = get_az()
-        self.write(f"Region: {region}\n")
-        self.write(f"AZ: {az}\n")
+        self.write(f'Region: {region}\n')
+        self.write(f'AZ: {az}\n')
 
 
 class FilesHandler(RequestHandler):
@@ -60,8 +60,8 @@ class FilesHandler(RequestHandler):
         for key in self.request.files:
             for file in self.request.files[key]:
                 print(file)
-                filename = file["filename"]
-                body = file["body"]
+                filename = file['filename']
+                body = file['body']
                 s3.put_object(
                     Bucket=S3_BUCKET,
                     Key=filename,
@@ -86,10 +86,10 @@ class FilesHandler(RequestHandler):
                 print('Send message to SQS')
 
                 self.set_status(201)
-                self.write(f"{filename} {len(body)} bytes uploaded\n")
+                self.write(f'{filename} {len(body)} bytes uploaded\n')
 
     def get(self, filename=None):
-        s3 = boto3.client("s3")
+        s3 = boto3.client('s3')
         if filename:
             try:
                 obj = s3.get_object(
@@ -97,11 +97,11 @@ class FilesHandler(RequestHandler):
                     Key=filename,
                 )
                 print(obj)
-                self.set_header("Content-Disposition", f"attachment; filename=\"{filename}\"")
-                self.write(obj["Body"].read())
+                self.set_header('Content-Disposition', f'attachment; filename="{filename}"')
+                self.write(obj['Body'].read())
             except s3.exceptions.NoSuchKey:
                 self.set_status(404)
-                self.write(f"{filename} not found\n")
+                self.write(f'{filename} not found\n')
             except Exception as e:
                 print(e)
                 self.set_status(500)
@@ -110,31 +110,31 @@ class FilesHandler(RequestHandler):
                 obj = s3.list_objects(
                     Bucket=S3_BUCKET,
                 )
-                if "Contents" in obj:
-                    contents = obj["Contents"]
+                if 'Contents' in obj:
+                    contents = obj['Contents']
                 else:
                     contents = []
 
                 print(contents)
                 for c in contents:
-                    filename = c["Key"]
-                    size = c["Size"]
-                    self.write(f"{filename} {size} bytes\n")
+                    filename = c['Key']
+                    size = c['Size']
+                    self.write(f'{filename} {size} bytes\n')
 
-                self.write(f"{len(contents)} files\n")
+                self.write(f'{len(contents)} files\n')
             except Exception as e:
                 print(e)
                 self.set_status(500)
 
     def delete(self, filename):
-        s3 = boto3.client("s3")
+        s3 = boto3.client('s3')
         try:
             obj = s3.delete_object(
                 Bucket=S3_BUCKET,
                 Key=filename,
             )
             print(obj)
-            self.write(f"{filename} deleted\n")
+            self.write(f'{filename} deleted\n')
         except Exception as e:
             print(e)
             self.set_status(500)
@@ -148,7 +148,7 @@ class SubsHandler(RequestHandler):
             try:
                 response = sns.subscribe(
                     TopicArn=SNS_TOPIC,
-                    Protocol="email",
+                    Protocol='email',
                     Endpoint=email,
                 )
 
@@ -161,7 +161,7 @@ class SubsHandler(RequestHandler):
 
     def get(self, ignored):
         """List all email subscriptions."""
-        sns = boto3.client("sns", region_name=get_region())
+        sns = boto3.client('sns', region_name=get_region())
         try:
             response = sns.list_subscriptions_by_topic(TopicArn=SNS_TOPIC)
             subs = [sub['Endpoint'] for sub in response['Subscriptions']]
@@ -202,7 +202,7 @@ def send_sqs_messages_to_sns():
             WaitTimeSeconds=20,
         )
 
-        if not 'Messages' in response:
+        if 'Messages' not in response:
             print('No messages')
             continue
 
@@ -225,10 +225,10 @@ def make_app():
     worker.start()
 
     return Application([
-        (r"/"    , MainHandler),
-        (r"/info", InfoHandler),
-        (r"/files/?([^/]+)?", FilesHandler),
-        (r"/subs/?([^/]+)?", SubsHandler),
+        (r'/', MainHandler),
+        (r'/info', InfoHandler),
+        (r'/files/?([^/]+)?', FilesHandler),
+        (r'/subs/?([^/]+)?', SubsHandler),
     ], debug=True)
 
 
@@ -236,9 +236,9 @@ def main():
     app = make_app()
     http_server = HTTPServer(app)
     http_server.listen(options.port)
-    print(f"Listening on http://0.0.0.0:{options.port}")
+    print(f'Listening on http://0.0.0.0:{options.port}')
     IOLoop.current().start()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

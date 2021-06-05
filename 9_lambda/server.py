@@ -1,4 +1,5 @@
 import os
+import json
 import threading
 
 import boto3
@@ -196,7 +197,7 @@ class SubsHandler(RequestHandler):
 class LambdaHandler(RequestHandler):
     def post(self):
         """Trigger Lambda."""
-        client = boto3.client('lambda')
+        client = boto3.client('lambda', region_name=get_region())
         response = client.invoke(
             FunctionName=LAMBDA_ARN,
             Payload=json.dumps({'detail-type': 'lambda_endpoint'}),

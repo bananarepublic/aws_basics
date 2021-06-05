@@ -80,3 +80,15 @@ $ curl -i $EC2_HOST:8888/subs
 ```
 curl -i -XDELETE $EC2_HOST:8888/subs/EMAIL
 ```
+
+### Invoke Lambda Function via Web App
+
+```
+$ curl -XPOST $EC2_HOST:8888/lambda
+```
+
+### Invoke Lambda Function via API Gateway
+
+```
+$ curl -v -XPOST 'INVOKE_URL/trigger_lambda' -d '{"detail-type": "API-GTW"}'
+```

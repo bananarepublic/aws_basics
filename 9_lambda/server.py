@@ -200,7 +200,7 @@ class LambdaHandler(RequestHandler):
         client = boto3.client('lambda', region_name=get_region())
         response = client.invoke(
             FunctionName=LAMBDA_ARN,
-            Payload=json.dumps({'detail-type': 'lambda_endpoint'}),
+            Payload=json.dumps({'detail-type': 'WEB-APP'}),
         )
         self.write(f'Response: {response}')
 

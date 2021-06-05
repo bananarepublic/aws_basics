@@ -235,7 +235,7 @@ Resources:
                     print('No messages')
                     return {
                         'statusCode': 200,
-                        'body': json.dumps('No messages')
+                        'body': json.dumps('No messages'),
                     }
 
                 count_messages = 0
@@ -253,7 +253,7 @@ Resources:
                     count_messages += 1
                     return {
                         'statusCode': 200,
-                        'body': json.dumps(f'Processed {count_messages} messages')
+                        'body': json.dumps(f'Processed {count_messages} messages'),
                     }
 
 Outputs: {}

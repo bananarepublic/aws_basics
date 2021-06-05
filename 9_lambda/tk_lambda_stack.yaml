@@ -125,6 +125,7 @@ Resources:
             export S3_BUCKET="${s3_bucket}"
             export SNS_TOPIC="${sns_topic}"
             export SQS_QUEUE="${sqs_queue}"
+            export LAMBDA_ARN="${lambda_arn}"
           EOF
 
           su - ubuntu -c 'cat >> .bashrc' << EOF
@@ -149,6 +150,7 @@ Resources:
         - s3_bucket: !Ref S3Bucket
           sns_topic: !Ref SNSTopic
           sqs_queue: !Ref SQSQueue
+          lambda_arn: !GetAtt LambdaFunction.Arn
 
   SSHIngressTrafficFromOutsideSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
@@ -201,7 +203,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       Runtime: python3.6
-      Timeout: 30
+      Timeout: 15
       Handler: index.handler
       Role: arn:aws:iam::397022601713:role/TK_LambdaAccessRole
       Environment:
@@ -212,6 +214,7 @@ Resources:
         ZipFile: |
             import os
             import boto3
+            import json
 
             AWS_REGION = 'us-east-1'
             SNS_TOPIC = os.getenv('SNS_TOPIC')
@@ -219,18 +222,23 @@ Resources:
 
 
             def handler(event, context):
+                print('event: ', event)
                 sns = boto3.client('sns', region_name=AWS_REGION)
                 sqs = boto3.client('sqs', region_name=AWS_REGION)
 
                 response = sqs.receive_message(
                     QueueUrl=SQS_QUEUE,
-                    WaitTimeSeconds=10,
+                    WaitTimeSeconds=5,
                 )
 
                 if 'Messages' not in response:
                     print('No messages')
-                    return
+                    return {
+                        'statusCode': 200,
+                        'body': json.dumps('No messages')
+                    }
 
+                count_messages = 0
                 for message in response['Messages']:
                     message_body = message['Body']
                     response = sns.publish(
@@ -242,5 +250,10 @@ Resources:
                     receipt_handle = message['ReceiptHandle']
                     sqs.delete_message(QueueUrl=SQS_QUEUE, ReceiptHandle=receipt_handle)
                     print('Delete message from SQS')
+                    count_messages += 1
+                    return {
+                        'statusCode': 200,
+                        'body': json.dumps(f'Processed {count_messages} messages')
+                    }
 
 Outputs: {}

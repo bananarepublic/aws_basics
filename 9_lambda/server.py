@@ -15,6 +15,7 @@ define('port', default=HTTP_PORT, help='port to listen on')
 S3_BUCKET = os.getenv('S3_BUCKET')
 SNS_TOPIC = os.getenv('SNS_TOPIC')
 SQS_QUEUE = os.getenv('SQS_QUEUE')
+LAMBDA_ARN = os.getenv('LAMBDA_ARN')
 
 
 def instance_info():
@@ -192,12 +193,24 @@ class SubsHandler(RequestHandler):
             self.set_status(500)
 
 
+class LambdaHandler(RequestHandler):
+    def post(self):
+        """Trigger Lambda."""
+        client = boto3.client('lambda')
+        response = client.invoke(
+            FunctionName=LAMBDA_ARN,
+            Payload=json.dumps({'detail-type': 'lambda_endpoint'}),
+        )
+        self.write(f'Response: {response}')
+
+
 def make_app():
     return Application([
         (r'/', MainHandler),
         (r'/info', InfoHandler),
         (r'/files/?([^/]+)?', FilesHandler),
         (r'/subs/?([^/]+)?', SubsHandler),
+        (r'/lambda', LambdaHandler),
     ], debug=True)
 
 

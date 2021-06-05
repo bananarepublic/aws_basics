@@ -197,4 +197,50 @@ Resources:
   SQSQueue:
     Type: AWS::SQS::Queue
 
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.6
+      Timeout: 30
+      Handler: index.handler
+      Role: arn:aws:iam::397022601713:role/TK_LambdaAccessRole
+      Environment:
+        Variables:
+          SNS_TOPIC: !Ref SNSTopic
+          SQS_QUEUE: !Ref SQSQueue
+      Code:
+        ZipFile: |
+            import os
+            import boto3
+
+            AWS_REGION = 'us-east-1'
+            SNS_TOPIC = os.getenv('SNS_TOPIC')
+            SQS_QUEUE = os.getenv('SQS_QUEUE')
+
+
+            def handler(event, context):
+                sns = boto3.client('sns', region_name=AWS_REGION)
+                sqs = boto3.client('sqs', region_name=AWS_REGION)
+
+                response = sqs.receive_message(
+                    QueueUrl=SQS_QUEUE,
+                    WaitTimeSeconds=10,
+                )
+
+                if 'Messages' not in response:
+                    print('No messages')
+                    return
+
+                for message in response['Messages']:
+                    message_body = message['Body']
+                    response = sns.publish(
+                        TargetArn=SNS_TOPIC,
+                        Message=message_body,
+                        Subject='New Event',
+                    )
+                    print('Send message to SNS')
+                    receipt_handle = message['ReceiptHandle']
+                    sqs.delete_message(QueueUrl=SQS_QUEUE, ReceiptHandle=receipt_handle)
+                    print('Delete message from SQS')
+
 Outputs: {}

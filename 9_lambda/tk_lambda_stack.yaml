@@ -251,9 +251,10 @@ Resources:
                     sqs.delete_message(QueueUrl=SQS_QUEUE, ReceiptHandle=receipt_handle)
                     print('Delete message from SQS')
                     count_messages += 1
-                    return {
-                        'statusCode': 200,
-                        'body': json.dumps(f'Processed {count_messages} messages'),
-                    }
+
+                return {
+                    'statusCode': 200,
+                    'body': json.dumps(f'Processed {count_messages} messages'),
+                }
 
 Outputs: {}

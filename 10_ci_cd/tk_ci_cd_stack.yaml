@@ -211,49 +211,7 @@ Resources:
           SNS_TOPIC: !Ref SNSTopic
           SQS_QUEUE: !Ref SQSQueue
       Code:
-        ZipFile: |
-            import os
-            import boto3
-            import json
-
-            AWS_REGION = 'us-east-1'
-            SNS_TOPIC = os.getenv('SNS_TOPIC')
-            SQS_QUEUE = os.getenv('SQS_QUEUE')
-
-
-            def handler(event, context):
-                print('event: ', event)
-                sns = boto3.client('sns', region_name=AWS_REGION)
-                sqs = boto3.client('sqs', region_name=AWS_REGION)
-
-                response = sqs.receive_message(
-                    QueueUrl=SQS_QUEUE,
-                    WaitTimeSeconds=5,
-                )
-
-                if 'Messages' not in response:
-                    print('No messages')
-                    return {
-                        'statusCode': 200,
-                        'body': json.dumps('No messages'),
-                    }
-
-                count_messages = 0
-                for message in response['Messages']:
-                    message_body = message['Body']
-                    response = sns.publish(
-                        TargetArn=SNS_TOPIC,
-                        Message=message_body,
-                        Subject='New Event',
-                    )
-                    print('Send message to SNS')
-                    receipt_handle = message['ReceiptHandle']
-                    sqs.delete_message(QueueUrl=SQS_QUEUE, ReceiptHandle=receipt_handle)
-                    print('Delete message from SQS')
-                    count_messages += 1
-                    return {
-                        'statusCode': 200,
-                        'body': json.dumps(f'Processed {count_messages} messages'),
-                    }
+        S3Bucket: tatsiana-klionskaya-website
+        S3Key: tk_build/lambda.zip
 
 Outputs: {}
